@@ -3,7 +3,7 @@
 //! The `InputBuffer` is a buffer of bytes similar to a first-in, first-out queue.
 //! It is filled by reading from a stream supporting `Read` and is then
 //! accessible as a cursor for reading bytes.
-
+#![deny(missing_debug_implementations)]
 extern crate bytes;
 
 use std::fmt;
@@ -13,6 +13,7 @@ use std::io::{Cursor, Read, Result as IoResult};
 use bytes::{Buf, BufMut};
 
 /// A FIFO buffer for reading packets from network.
+#[derive(Debug)]
 pub struct InputBuffer(Cursor<Vec<u8>>);
 
 /// The recommended minimum read size.
@@ -113,8 +114,8 @@ impl Buf for InputBuffer {
     }
 }
 
-
 /// The reference to the buffer used for reading.
+#[derive(Debug)]
 pub struct DoRead<'t> {
     buf: &'t mut InputBuffer,
     remove_garbage: bool,
@@ -216,7 +217,11 @@ mod tests {
     fn limiting() {
         let mut inp = Cursor::new(b"Hello World!".to_vec());
         let mut buf = InputBuffer::with_capacity(4);
-        let size = buf.prepare_reserve(4).with_limit(5).unwrap().read_from(&mut inp).unwrap();
+        let size = buf.prepare_reserve(4)
+            .with_limit(5)
+            .unwrap()
+            .read_from(&mut inp)
+            .unwrap();
         assert_eq!(size, 4);
         assert_eq!(buf.bytes(), b"Hell");
         buf.advance(2);
@@ -226,7 +231,11 @@ mod tests {
             assert!(e.is_err());
         }
         buf.advance(1);
-        let size = buf.prepare_reserve(4).with_limit(5).unwrap().read_from(&mut inp).unwrap();
+        let size = buf.prepare_reserve(4)
+            .with_limit(5)
+            .unwrap()
+            .read_from(&mut inp)
+            .unwrap();
         assert_eq!(size, 4);
         assert_eq!(buf.bytes(), b"lo Wo");
     }
