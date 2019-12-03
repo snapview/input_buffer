@@ -153,7 +153,11 @@ impl<'t> DoRead<'t> {
 
         assert!(v.capacity() > v.len());
         let size = unsafe {
-            let size = stream.read(&mut v.bytes_mut()[..self.reserve])?;
+            // TODO: This can be replaced by std::mem::MaybeUninit::first_ptr_mut() once
+            // it is stabilized.
+            let data = &mut v.bytes_mut()[..self.reserve];
+            let data = std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut u8, data.len());
+            let size = stream.read(data)?;
             v.advance_mut(size);
             size
         };
