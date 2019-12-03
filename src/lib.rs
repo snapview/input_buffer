@@ -6,8 +6,8 @@
 #![deny(missing_debug_implementations)]
 extern crate bytes;
 
-use std::fmt;
 use std::error;
+use std::fmt;
 use std::io::{Cursor, Read, Result as IoResult};
 
 use bytes::{Buf, BufMut};
@@ -185,8 +185,8 @@ impl error::Error for SizeLimit {
 mod tests {
 
     use super::InputBuffer;
-    use std::io::Cursor;
     use bytes::Buf;
+    use std::io::Cursor;
 
     #[test]
     fn simple_reading() {
@@ -221,7 +221,8 @@ mod tests {
     fn limiting() {
         let mut inp = Cursor::new(b"Hello World!".to_vec());
         let mut buf = InputBuffer::with_capacity(4);
-        let size = buf.prepare_reserve(4)
+        let size = buf
+            .prepare_reserve(4)
             .with_limit(5)
             .unwrap()
             .read_from(&mut inp)
@@ -235,7 +236,8 @@ mod tests {
             assert!(e.is_err());
         }
         buf.advance(1);
-        let size = buf.prepare_reserve(4)
+        let size = buf
+            .prepare_reserve(4)
             .with_limit(5)
             .unwrap()
             .read_from(&mut inp)
