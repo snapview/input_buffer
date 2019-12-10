@@ -6,8 +6,8 @@
 #![deny(missing_debug_implementations)]
 extern crate bytes;
 
-use std::fmt;
 use std::error;
+use std::fmt;
 use std::io::{Cursor, Read, Result as IoResult};
 
 use bytes::{Buf, BufMut};
@@ -153,7 +153,11 @@ impl<'t> DoRead<'t> {
 
         assert!(v.capacity() > v.len());
         let size = unsafe {
-            let size = stream.read(&mut v.bytes_mut()[..self.reserve])?;
+            // TODO: This can be replaced by std::mem::MaybeUninit::first_ptr_mut() once
+            // it is stabilized.
+            let data = &mut v.bytes_mut()[..self.reserve];
+            let data = std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut u8, data.len());
+            let size = stream.read(data)?;
             v.advance_mut(size);
             size
         };
@@ -181,8 +185,8 @@ impl error::Error for SizeLimit {
 mod tests {
 
     use super::InputBuffer;
-    use std::io::Cursor;
     use bytes::Buf;
+    use std::io::Cursor;
 
     #[test]
     fn simple_reading() {
@@ -217,7 +221,8 @@ mod tests {
     fn limiting() {
         let mut inp = Cursor::new(b"Hello World!".to_vec());
         let mut buf = InputBuffer::with_capacity(4);
-        let size = buf.prepare_reserve(4)
+        let size = buf
+            .prepare_reserve(4)
             .with_limit(5)
             .unwrap()
             .read_from(&mut inp)
@@ -231,7 +236,8 @@ mod tests {
             assert!(e.is_err());
         }
         buf.advance(1);
-        let size = buf.prepare_reserve(4)
+        let size = buf
+            .prepare_reserve(4)
             .with_limit(5)
             .unwrap()
             .read_from(&mut inp)
