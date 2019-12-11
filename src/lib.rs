@@ -156,6 +156,16 @@ impl<'t> DoRead<'t> {
             // TODO: This can be replaced by std::mem::MaybeUninit::first_ptr_mut() once
             // it is stabilized.
             let data = &mut v.bytes_mut()[..self.reserve];
+            // We first have to initialize the data or otherwise casting to a byte slice
+            // below is UB. See also code of std::io::copy(), tokio::AsyncRead::poll_read_buf()
+            // and others.
+            //
+            // Read::read() might read uninitialized data otherwise, and generally creating
+            // references to uninitialized data is UB.
+            for x in data.iter_mut() {
+                *x.as_mut_ptr() = 0;
+            }
+            // Now it's safe to cast it to a byte slice
             let data = std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut u8, data.len());
             let size = stream.read(data)?;
             v.advance_mut(size);
