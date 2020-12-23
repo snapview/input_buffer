@@ -106,8 +106,8 @@ impl Buf for InputBuffer {
     fn remaining(&self) -> usize {
         Buf::remaining(self.as_cursor())
     }
-    fn bytes(&self) -> &[u8] {
-        Buf::bytes(self.as_cursor())
+    fn chunk(&self) -> &[u8] {
+        Buf::chunk(self.as_cursor())
     }
     fn advance(&mut self, size: usize) {
         Buf::advance(self.as_cursor_mut(), size)
@@ -155,15 +155,15 @@ impl<'t> DoRead<'t> {
         let size = unsafe {
             // TODO: This can be replaced by std::mem::MaybeUninit::first_ptr_mut() once
             // it is stabilized.
-            let data = &mut v.bytes_mut()[..self.reserve];
+            let data = &mut v.chunk_mut()[..self.reserve];
             // We first have to initialize the data or otherwise casting to a byte slice
             // below is UB. See also code of std::io::copy(), tokio::AsyncRead::poll_read_buf()
             // and others.
             //
             // Read::read() might read uninitialized data otherwise, and generally creating
             // references to uninitialized data is UB.
-            for x in data.iter_mut() {
-                *x.as_mut_ptr() = 0;
+            for i in 0..data.len() {
+                data.write_byte(i, 0);
             }
             // Now it's safe to cast it to a byte slice
             let data = std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut u8, data.len());
@@ -204,7 +204,7 @@ mod tests {
         let mut buf = InputBuffer::new();
         let size = buf.read_from(&mut inp).unwrap();
         assert_eq!(size, 12);
-        assert_eq!(buf.bytes(), b"Hello World!");
+        assert_eq!(buf.chunk(), b"Hello World!");
     }
 
     #[test]
@@ -213,18 +213,18 @@ mod tests {
         let mut buf = InputBuffer::with_capacity(4);
         let size = buf.prepare_reserve(4).read_from(&mut inp).unwrap();
         assert_eq!(size, 4);
-        assert_eq!(buf.bytes(), b"Hell");
+        assert_eq!(buf.chunk(), b"Hell");
         buf.advance(2);
-        assert_eq!(buf.bytes(), b"ll");
+        assert_eq!(buf.chunk(), b"ll");
         let size = buf.prepare_reserve(1).read_from(&mut inp).unwrap();
         assert_eq!(size, 1);
-        assert_eq!(buf.bytes(), b"llo");
+        assert_eq!(buf.chunk(), b"llo");
         let size = buf.prepare_reserve(4).read_from(&mut inp).unwrap();
         assert_eq!(size, 4);
-        assert_eq!(buf.bytes(), b"llo Wor");
+        assert_eq!(buf.chunk(), b"llo Wor");
         let size = buf.prepare_reserve(16).read_from(&mut inp).unwrap();
         assert_eq!(size, 3);
-        assert_eq!(buf.bytes(), b"llo World!");
+        assert_eq!(buf.chunk(), b"llo World!");
     }
 
     #[test]
@@ -238,9 +238,9 @@ mod tests {
             .read_from(&mut inp)
             .unwrap();
         assert_eq!(size, 4);
-        assert_eq!(buf.bytes(), b"Hell");
+        assert_eq!(buf.chunk(), b"Hell");
         buf.advance(2);
-        assert_eq!(buf.bytes(), b"ll");
+        assert_eq!(buf.chunk(), b"ll");
         {
             let e = buf.prepare_reserve(4).with_limit(5);
             assert!(e.is_err());
@@ -253,6 +253,6 @@ mod tests {
             .read_from(&mut inp)
             .unwrap();
         assert_eq!(size, 4);
-        assert_eq!(buf.bytes(), b"lo Wo");
+        assert_eq!(buf.chunk(), b"lo Wo");
     }
 }
