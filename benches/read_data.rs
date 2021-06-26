@@ -27,7 +27,7 @@ impl Read for MockInput {
         if self.bytes >= self.limit {
             Ok(0)
         } else {
-            let size = std::cmp::min(self.chunk.len(), buf.len());
+            let size = std::cmp::min(self.limit - self.bytes, std::cmp::min(self.chunk.len(), buf.len()));
             self.bytes += size;
             buf[..size].copy_from_slice(&self.chunk[..size]);
             Ok(size)
@@ -42,6 +42,7 @@ fn input_buffer(mut inp: MockInput) {
             break;
         }
     }
+    assert_eq!(buf.as_cursor().get_ref().len(), inp.total_len());
 }
 
 fn extend_from_slice(mut inp: MockInput) {
@@ -56,12 +57,12 @@ fn extend_from_slice(mut inp: MockInput) {
             Err(_) => unreachable!()
         }
     }
+    assert_eq!(data.len(), inp.total_len());
 }
 
-const DATA_SIZE: usize = 1024 * 1024 * 8;
 
 fn with_capacity(mut inp: MockInput) {
-    let mut data = Vec::with_capacity(DATA_SIZE);
+    let mut data = Vec::with_capacity(inp.total_len());
     let chunk = &mut [0; 8192];
     loop {
         match inp.read(chunk) {
@@ -72,12 +73,13 @@ fn with_capacity(mut inp: MockInput) {
             Err(_) => unreachable!()
         }
     }
+    assert_eq!(data.len(), inp.total_len());
 }
 
 fn with_capacity_unsafe(mut inp: MockInput) {
-    let mut data = Vec::with_capacity(DATA_SIZE);
+    let mut data = Vec::with_capacity(inp.total_len());
     unsafe {
-        data.set_len(DATA_SIZE);
+        data.set_len(inp.total_len());
     }
     let mut pos = 0;
 
@@ -93,9 +95,12 @@ fn with_capacity_unsafe(mut inp: MockInput) {
     unsafe {
         data.set_len(pos);
     }
+    assert_eq!(data.len(), inp.total_len());
 }
 
 fn bench(c: &mut Criterion) {
+    const DATA_SIZE: usize = 1024 * 1024 * 8;
+
     let inp = MockInput::new(1400, DATA_SIZE);
     let mut group = c.benchmark_group("throughput");
     group.throughput(Throughput::Bytes(inp.total_len() as u64));
