@@ -1,24 +1,27 @@
 use criterion::*;
 use input_buffer::*;
-use std::io::{Read};
+use std::io::Read;
+
 #[derive(Clone)]
 struct MockInput {
     bytes: usize,
     chunk: Vec<u8>,
-    limit: usize
+    limit: usize,
 }
+
 impl MockInput {
     pub fn new(chunk: usize, limit: usize) -> Self {
         Self {
             bytes: 0,
             chunk: vec![0; chunk],
-            limit
+            limit,
         }
     }
     pub fn total_len(&self) -> usize {
         self.limit
     }
 }
+
 impl Read for MockInput {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         if self.bytes >= self.limit {
@@ -32,7 +35,7 @@ impl Read for MockInput {
     }
 }
 
-fn decode(mut inp: MockInput) {
+fn input_buffer(mut inp: MockInput) {
     let mut buf = InputBuffer::new();
     loop {
         if buf.read_from(&mut inp).ok() == Some(0) {
@@ -41,11 +44,65 @@ fn decode(mut inp: MockInput) {
     }
 }
 
+fn extend_from_slice(mut inp: MockInput) {
+    let mut data = Vec::new();
+    let chunk = &mut [0; 8192];
+    loop {
+        match inp.read(chunk) {
+            Ok(0) => { break; }
+            Ok(n) => {
+                data.extend_from_slice(&chunk[..n])
+            }
+            Err(_) => unreachable!()
+        }
+    }
+}
+
+const DATA_SIZE: usize = 1024 * 1024 * 8;
+
+fn with_capacity(mut inp: MockInput) {
+    let mut data = Vec::with_capacity(DATA_SIZE);
+    let chunk = &mut [0; 8192];
+    loop {
+        match inp.read(chunk) {
+            Ok(0) => { break; }
+            Ok(n) => {
+                data.extend_from_slice(&chunk[..n])
+            }
+            Err(_) => unreachable!()
+        }
+    }
+}
+
+fn with_capacity_unsafe(mut inp: MockInput) {
+    let mut data = Vec::with_capacity(DATA_SIZE);
+    unsafe {
+        data.set_len(DATA_SIZE);
+    }
+    let mut pos = 0;
+
+    loop {
+        match inp.read(&mut data[pos..]) {
+            Ok(0) => { break; }
+            Ok(n) => {
+                pos += n;
+            }
+            Err(_) => unreachable!()
+        }
+    }
+    unsafe {
+        data.set_len(pos);
+    }
+}
+
 fn bench(c: &mut Criterion) {
-    let inp = MockInput::new(1400, 1024 * 1024 * 24);
+    let inp = MockInput::new(1400, DATA_SIZE);
     let mut group = c.benchmark_group("throughput");
     group.throughput(Throughput::Bytes(inp.total_len() as u64));
-    group.bench_function("decode", |b| b.iter(|| decode(inp.clone())));
+    group.bench_function("input_buffer", |b| b.iter(|| input_buffer(inp.clone())));
+    group.bench_function("extend_from_slice", |b| b.iter(|| extend_from_slice(inp.clone())));
+    group.bench_function("with_capacity", |b| b.iter(|| with_capacity(inp.clone())));
+    group.bench_function("with_capacity_unsafe", |b| b.iter(|| with_capacity_unsafe(inp.clone())));
     group.finish();
 }
 
