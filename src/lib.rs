@@ -162,8 +162,11 @@ impl<'t> DoRead<'t> {
             //
             // Read::read() might read uninitialized data otherwise, and generally creating
             // references to uninitialized data is UB.
-            for i in 0..data.len() {
-                data.write_byte(i, 0);
+            {
+                let memory_to_zero = data.as_mut_ptr();
+                for i in 0..data.len() {
+                    memory_to_zero.add(i).write(0);
+                }
             }
             // Now it's safe to cast it to a byte slice
             let data = std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut u8, data.len());
