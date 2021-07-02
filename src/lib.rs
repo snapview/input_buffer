@@ -12,6 +12,8 @@ use std::io::{Cursor, Read, Result as IoResult};
 
 use bytes::{Buf, BufMut};
 
+pub mod fast;
+
 /// A FIFO buffer for reading packets from network.
 #[derive(Debug)]
 pub struct InputBuffer(Cursor<Vec<u8>>);
